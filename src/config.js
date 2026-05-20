@@ -25,7 +25,10 @@ export const config = {
   // Default model (user preference, persists across sessions)
   defaultModel: process.env.DEFAULT_MODEL || '',
   // Dynamic UI theme
-  theme: process.env.NEX_THEME || 'classic'
+  theme: process.env.NEX_THEME || 'classic',
+  // Telegram Integration
+  telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || '',
+  telegramAllowedUsers: (process.env.TELEGRAM_ALLOWED_USERS || '').split(',').map(u => u.trim()).filter(Boolean)
 };
 
 /**

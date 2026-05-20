@@ -6,6 +6,7 @@ import { toolDefinitions, executeTool } from "./tools/index.js";
 import { MemorySystem } from "./memory.js";
 import { PromptGuard, Action } from "./safety/prompt-guard.js";
 import { HealthCheckSystem } from "./health-check.js";
+import { McpClientManager } from "./mcp/client-manager.js";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -19,10 +20,12 @@ export class Agent {
     this.client = new OpenRouter({
       apiKey: config.openrouterApiKey
     });
-    this.messages = [];
+    this.sessions = new Map();
+    this.systemPrompt = '';
     this.totalToolCalls = 0;
     this.sessionStartTime = Date.now();
     this.memory = new MemorySystem();
+    this.mcpClientManager = new McpClientManager();
     this.promptGuard = new PromptGuard({
       sensitivity: config.safetySensitivity,
       canaryTokens: config.canaryTokens
@@ -32,6 +35,22 @@ export class Agent {
     this.sessionTotalTokens = 0;
     this._debugMode = false;
     ui.logSessionStart();
+  }
+
+  get messages() {
+    return this.getSessionMessages('console');
+  }
+
+  set messages(val) {
+    this.sessions.set('console', val);
+  }
+
+  getSessionMessages(sessionId) {
+    if (!this.sessions.has(sessionId)) {
+      const prompt = this.systemPrompt || "You are NEX AI, a helpful coding assistant with memory capabilities.";
+      this.sessions.set(sessionId, [{ role: "system", content: prompt }]);
+    }
+    return this.sessions.get(sessionId);
   }
 
   /** Rebuild the OpenRouter client (e.g. after API key change) */
@@ -67,6 +86,9 @@ export class Agent {
         ui.printInfo(`[MEMORY] Sessions: ${summary.sessionCount}, Messages: ${summary.totalMessages}, Insights: ${summary.insightsCount}`);
       }
 
+      // Initialize Dynamic MCP Connection Bridge
+      await this.mcpClientManager.initialize();
+
       const skillPath = path.join(__dirname, '..', 'SKILL.md');
       const systemPrompt = await fs.readFile(skillPath, 'utf8');
       
@@ -82,72 +104,117 @@ export class Agent {
       enhancedPrompt += '- You can learn from conversations: remember user preferences, names, project patterns.';
       enhancedPrompt += '- Reference previous learnings when they are relevant to the current conversation.';
       
-      this.messages.push({ role: "system", content: enhancedPrompt });
+      this.systemPrompt = enhancedPrompt;
+      
+      // Initialize console session
+      this.sessions.set('console', [{ role: "system", content: this.systemPrompt }]);
       ui.printInfo('[INIT] System prompt loaded from SKILL.md with memory capabilities');
       ui.printDebug(`[INIT] System prompt length: ${enhancedPrompt.length} chars`);
     } catch (e) {
       ui.printWarning("[INIT] Could not load SKILL.md. Using default system prompt.");
-      this.messages.push({ role: "system", content: "You are NEX AI, a helpful coding assistant with memory capabilities." });
+      this.systemPrompt = "You are NEX AI, a helpful coding assistant with memory capabilities.";
+      this.sessions.set('console', [{ role: "system", content: this.systemPrompt }]);
     }
   }
 
-  async chat(userMessage) {
-    ui.printUser(userMessage);
+
+  async chat(userMessage, sessionId = 'console', onFeedback = null) {
+    if (sessionId === 'console') {
+      ui.printUser(userMessage);
+    }
     
     // Safety scanning of user input
     const safetyResult = this.promptGuard.analyze(userMessage);
     if (safetyResult.action === Action.BLOCK || safetyResult.action === Action.BLOCK_NOTIFY) {
-      ui.printSafetyAlert(safetyResult, userMessage);
-      return;
+      if (sessionId === 'console') {
+        ui.printSafetyAlert(safetyResult, userMessage);
+      }
+      if (onFeedback) {
+        await onFeedback('safety_blocked', { safetyResult });
+      }
+      return "🚨 Request blocked for security reasons.";
     }
     
     // Save user message to memory
     this.memory.addChatMessage('user', userMessage);
     
-    this.messages.push({ role: "user", content: userMessage });
+    let messages = this.getSessionMessages(sessionId);
+    messages.push({ role: "user", content: userMessage });
     
     // Safety check for history
-    if (this.messages.length > 50) {
-      ui.printWarning('[HISTORY] Message history exceeds 50, trimming...');
-      this.messages = [this.messages[0], ...this.messages.slice(-40)];
+    if (messages.length > 50) {
+      if (sessionId === 'console') {
+        ui.printWarning('[HISTORY] Message history exceeds 50, trimming...');
+      }
+      messages = [messages[0], ...messages.slice(-40)];
+      this.sessions.set(sessionId, messages);
     }
 
     // Check if we should add relevant memories to context
     const relevantMemories = this.memory.getRelevantMemories(userMessage);
     if (relevantMemories.length > 0) {
-      ui.printDebug(`[MEMORY] Found ${relevantMemories.length} relevant memories`);
+      if (sessionId === 'console') {
+        ui.printDebug(`[MEMORY] Found ${relevantMemories.length} relevant memories`);
+      }
       const memContext = relevantMemories.map(m => `[Memory] ${m.insight}`).join('\n');
-      this.messages.push({ role: "system", content: `Relevant memories:\n${memContext}` });
+      messages.push({ role: "system", content: `Relevant memories:\n${memContext}` });
     }
 
-    ui.logRequest(config.model, this.messages.length);
+    if (sessionId === 'console') {
+      ui.logRequest(config.model, messages.length);
+    }
 
     let isDone = false;
     let iteration = 0;
+    let lastAssistantContent = '';
 
     while (!isDone) {
       iteration++;
-      ui.printDebug(`[LOOP] Iteration ${iteration}`);
-      const spinner = ui.createSpinner("Thinking...").start();
+      if (sessionId === 'console') {
+        ui.printDebug(`[LOOP] Iteration ${iteration}`);
+      }
+      
+      let spinner;
+      if (sessionId === 'console') {
+        spinner = ui.createSpinner("Thinking...").start();
+      }
+      
+      if (onFeedback) {
+        await onFeedback('thinking');
+      }
       
       try {
         const startTime = Date.now();
+        const mcpTools = this.mcpClientManager.getOpenRouterTools();
+        const combinedTools = [
+          ...toolDefinitions,
+          ...mcpTools
+        ];
+
         const completion = await this.client.chat.send({
           chatRequest: {
             model: config.model,
-            messages: this.messages,
-            tools: toolDefinitions,
+            messages: messages,
+            tools: combinedTools,
             temperature: config.temperature,
             max_tokens: config.maxTokens
           }
         });
         const responseTime = Date.now() - startTime;
-        spinner.stop();
-        ui.logResponse(config.model, completion.choices?.[0]?.message?.toolCalls);
-        ui.printDebug(`[API] Response time: ${responseTime}ms`);
+        if (spinner) spinner.stop();
+        
+        if (sessionId === 'console') {
+          ui.logResponse(config.model, completion.choices?.[0]?.message?.toolCalls);
+          ui.printDebug(`[API] Response time: ${responseTime}ms`);
+        }
 
         if (!completion.choices || completion.choices.length === 0) {
-          ui.printError("[API] No response from model.");
+          if (sessionId === 'console') {
+            ui.printError("[API] No response from model.");
+          }
+          if (onFeedback) {
+            await onFeedback('error', { message: "No response from model." });
+          }
           break;
         }
 
@@ -176,11 +243,14 @@ export class Agent {
             assistantContent = "Response blocked: contains sensitive data that cannot be safely redacted.";
           } else {
             if (dlpResult.wasModified) {
-              ui.printWarning(`[SAFETY] Redacted ${dlpResult.redactionCount} sensitive items from response.`);
+              if (sessionId === 'console') {
+                ui.printWarning(`[SAFETY] Redacted ${dlpResult.redactionCount} sensitive items from response.`);
+              }
               assistantContent = dlpResult.sanitizedText;
             }
           }
           msgToPush.content = assistantContent;
+          lastAssistantContent = assistantContent;
         }
 
         if (toolCalls && toolCalls.length > 0) {
@@ -194,15 +264,16 @@ export class Agent {
           }));
         }
 
-        this.messages.push(msgToPush);
+        messages.push(msgToPush);
 
         if (assistantContent) {
-          ui.printAI(assistantContent);
           if (completion.usage) {
             this.sessionPromptTokens += completion.usage.prompt_tokens || completion.usage.promptTokens || 0;
             this.sessionCompletionTokens += completion.usage.completion_tokens || completion.usage.completionTokens || 0;
             this.sessionTotalTokens += completion.usage.total_tokens || completion.usage.totalTokens || 0;
-            ui.printTokenUsage(completion.usage);
+          }
+          if (sessionId === 'console') {
+            ui.printAI(assistantContent, completion.usage);
           }
           
           // Save assistant response to memory
@@ -214,8 +285,10 @@ export class Agent {
         
         // Debug output if model returns completely empty
         if (!choice.content && (!toolCalls || toolCalls.length === 0)) {
-           ui.printError("[API] Model returned an empty response. Here is the raw API output:");
-           console.log(JSON.stringify(completion, null, 2));
+           if (sessionId === 'console') {
+             ui.printError("[API] Model returned an empty response. Here is the raw API output:");
+             console.log(JSON.stringify(completion, null, 2));
+           }
            isDone = true;
            continue;
         }
@@ -230,15 +303,30 @@ export class Agent {
             } catch(e) {
               argsObj = toolCall.function.arguments;
             }
-            ui.printToolCall(toolCall.function.name, argsObj);
+            if (sessionId === 'console') {
+              ui.printToolCall(toolCall.function.name, argsObj);
+            }
+            if (onFeedback) {
+              await onFeedback('tool_call', { name: toolCall.function.name, arguments: argsObj });
+            }
             
-            const resultStr = await executeTool(toolCall);
+            let resultStr;
+            if (toolCall.function.name.includes('__')) {
+              resultStr = await this.mcpClientManager.executeDynamicTool(toolCall.function.name, argsObj);
+            } else {
+              resultStr = await executeTool(toolCall);
+            }
             const toolDuration = Date.now() - toolStart;
-            ui.printToolResult(toolCall.function.name, resultStr);
-            ui.logToolExecution(toolCall.function.name, toolDuration);
+            if (sessionId === 'console') {
+              ui.printToolResult(toolCall.function.name, resultStr);
+              ui.logToolExecution(toolCall.function.name, toolDuration);
+            }
+            if (onFeedback) {
+              await onFeedback('tool_result', { name: toolCall.function.name, result: resultStr });
+            }
             this.totalToolCalls++;
             
-            this.messages.push({
+            messages.push({
               role: "tool",
               toolCallId: toolCall.id,
               content: resultStr
@@ -250,11 +338,16 @@ export class Agent {
         }
 
       } catch (error) {
-        spinner.stop();
-        ui.printError(`[API] Error: ${error.message}`);
-        ui.printDebug(`[API] Error stack: ${error.stack}`);
+        if (spinner) spinner.stop();
+        if (sessionId === 'console') {
+          ui.printError(`[API] Error: ${error.message}`);
+          ui.printDebug(`[API] Error stack: ${error.stack}`);
+        }
+        if (onFeedback) {
+          await onFeedback('error', { message: error.message });
+        }
         // Remove the user message that caused the error so they can try again
-        this.messages.pop(); 
+        messages.pop(); 
         break;
       }
     }
@@ -262,14 +355,21 @@ export class Agent {
     // Save memory after chat
     await this.memory.save();
     
-    ui.printDebug(`[CHAT] Chat completed. Total tool calls this session: ${this.totalToolCalls}`);
+    if (sessionId === 'console') {
+      ui.printDebug(`[CHAT] Chat completed. Total tool calls this session: ${this.totalToolCalls}`);
+    }
+
+    return lastAssistantContent;
   }
 
-  clearHistory() {
-    const sysPrompt = this.messages[0];
-    this.messages = [sysPrompt];
+  clearHistory(sessionId = 'console') {
+    const messages = this.getSessionMessages(sessionId);
+    const sysPrompt = messages[0];
+    this.sessions.set(sessionId, [sysPrompt]);
     this.memory.clearMemory();
-    ui.logHistoryCleared();
+    if (sessionId === 'console') {
+      ui.logHistoryCleared();
+    }
   }
 
   async getSessionStats() {
@@ -322,15 +422,15 @@ export class Agent {
   /**
    * Get conversation history (excluding system prompt)
    */
-  getConversationHistory() {
-    return this.messages.filter(m => m.role !== 'system');
+  getConversationHistory(sessionId = 'console') {
+    return this.getSessionMessages(sessionId).filter(m => m.role !== 'system');
   }
 
   /**
    * Export conversation to a file
    */
-  async exportConversation(filePath) {
-    const history = this.getConversationHistory();
+  async exportConversation(filePath, sessionId = 'console') {
+    const history = this.getConversationHistory(sessionId);
     const exportData = {
       exportedAt: new Date().toISOString(),
       model: config.model,

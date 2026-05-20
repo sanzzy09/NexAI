@@ -6,6 +6,9 @@ import * as fileDelete from './file-delete.js';
 import * as runCommand from './run-command.js';
 import * as listDirectory from './list-directory.js';
 import * as searchFiles from './search-files.js';
+import * as gitManager from './git-manager.js';
+import * as webFetch from './web-fetch.js';
+import * as systemInfo from './system-info.js';
 import { executeMemoryTool } from './memory-tools.js';
 import { ui } from '../ui.js';
 
@@ -16,8 +19,12 @@ export const toolsList = [
   fileDelete,
   runCommand,
   listDirectory,
-  searchFiles
+  searchFiles,
+  gitManager,
+  webFetch,
+  systemInfo
 ];
+
 
 export const toolDefinitions = [
   ...toolsList.map(t => t.definition),

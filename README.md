@@ -1,12 +1,16 @@
 # NEX AI — Terminal AI Agent with MCP Tools
 
-NEX AI is a terminal-based AI coding assistant powered by OpenRouter API with MCP (Model Context Protocol) tool-use capabilities. It runs directly in your terminal and helps you with coding tasks by creating files, executing commands, searching code, and managing persistent memory.
+NEX AI is a terminal-based AI coding assistant powered by OpenRouter API with MCP (Model Context Protocol) tool-use capabilities. It runs directly in your terminal and helps you with coding tasks by creating files, executing commands, searching code, managing Git repositories, fetching web content, and managing persistent memory.
 
 ## Features
 
 - **Interactive REPL** — Chat with the AI assistant directly in your terminal
 - **MCP Server** — Expose NEX AI's tools for external agents (Cursor, Claude Desktop, etc.)
+- **MCP Client Manager** — Connect to and manage external MCP servers
 - **Persistent Memory** — Save and recall information across sessions
+- **Git Management** — Check status, diff, and log directly from the agent
+- **Web Fetching** — Retrieve and parse web content
+- **System Info** — Get host resource details (OS, CPU, memory, uptime)
 - **Safety Guard** — Prompt injection detection and content filtering
 - **Rich UI** — Colored output, spinners, and box-drawing for better readability
 - **Transparent Logging** — All operations logged with prefix tags for debugging
@@ -32,12 +36,16 @@ nex-ai/
 │   │   ├── search-files.js
 │   │   ├── run-command.js
 │   │   ├── memory-tools.js
+│   │   ├── git-manager.js
+│   │   ├── system-info.js
+│   │   ├── web-fetch.js
 │   │   └── index.js      # Tool registry
 │   ├── safety/           # Safety and content filtering
 │   │   └── prompt-guard.js
-│   └── mcp/              # MCP server for external integrations
+│   └── mcp/              # MCP server and client for external integrations
 │       ├── server.js
-│       └── tools-adapter.js
+│       ├── tools-adapter.js
+│       └── client-manager.js
 ├── .env                  # Environment variables (API keys, model config)
 ├── package.json
 └── SKILL.md              # Skill documentation
@@ -87,7 +95,7 @@ npm run mcp
 
 ## Available Tools
 
-NEX AI comes with **12 built-in tools**:
+NEX AI comes with **16 built-in tools**:
 
 | Tool              | Category  | Description                          |
 |-------------------|-----------|--------------------------------------|
@@ -98,6 +106,9 @@ NEX AI comes with **12 built-in tools**:
 | `list_directory`  | Files     | List directory contents              |
 | `search_files`    | Files     | Search for patterns in files         |
 | `run_command`     | Execute   | Run shell commands                   |
+| `git_manager`     | Git       | Manage Git repository tasks          |
+| `system_info`     | System    | Get host resource details            |
+| `web_fetch`       | Web       | Fetch and parse web content          |
 | `memory_save`     | Memory    | Save key-value pairs to memory       |
 | `memory_recall`   | Memory    | Search through saved memories        |
 | `memory_summary`  | Memory    | Get overview of all memories         |

@@ -1,6 +1,7 @@
 // This Code Modified By NexAI
 import readline from 'readline';
 import { Agent } from './agent.js';
+import { TelegramBotManager } from './telegram/telegram-manager.js';
 import { 
   ui, 
   drawBoxHeader, 
@@ -202,6 +203,29 @@ async function gitPush(commitMsg, branch) {
   return { success: true, fileCount, branch: targetBranch, results };
 }
 
+/**
+ * Gracefully shuts down all connected external MCP servers.
+ */
+async function cleanShutdown(agent) {
+  if (agent && agent.telegramBot) {
+    try {
+      agent.telegramBot.stop();
+    } catch (e) {
+      ui.printInfo(`[DEBUG] Error stopping Telegram bot during exit: ${e.message}`);
+    }
+  }
+  if (agent && agent.mcpClientManager && agent.mcpClientManager.servers.size > 0) {
+    ui.printInfo('Shutting down active MCP server connections...');
+    for (const name of agent.mcpClientManager.servers.keys()) {
+      try {
+        await agent.mcpClientManager.disconnectServer(name);
+      } catch (e) {
+        ui.printInfo(`[DEBUG] Error disconnecting ${name} during exit: ${e.message}`);
+      }
+    }
+  }
+}
+
 async function main() {
   // Set theme from configuration if saved
   if (config.theme) {
@@ -219,6 +243,11 @@ async function main() {
   // ── Initialize agent ──────────────────────────────────────────
   const agent = new Agent();
   await agent.initialize();
+
+  // ── Start Telegram Bot Remote Assistant ───────────────────────
+  const telegramBot = new TelegramBotManager(agent);
+  await telegramBot.start();
+  agent.telegramBot = telegramBot;
 
   // ── Run full system health check BEFORE accepting user input ──
   // This Code Modified By NexAI
@@ -294,6 +323,7 @@ async function main() {
     // ── /exit ────────────────────────────────────────────────────
     if (input === '/exit' || input === '/quit') {
       ui.printInfo('[EXIT] User requested exit');
+      await cleanShutdown(agent);
       ui.logSessionEnd();
       const stats = await agent.getSessionStats();
       ui.printInfo(`[STATS] Messages: ${stats.messages}, Tool calls: ${stats.toolCalls}, Duration: ${stats.duration}`);
@@ -329,6 +359,12 @@ async function main() {
       console.log(drawBoxRow(ui.theme.primary.bold('  GITHUB'), ui.theme.border, 78));
       console.log(drawBoxRow('    /gitpush          Push current project to GitHub', ui.theme.border, 78));
       console.log(drawBoxRow('    /gittoken [token] View or change GitHub Personal Access Token', ui.theme.border, 78));
+      console.log(drawBoxRow('', ui.theme.border, 78));
+      console.log(drawBoxRow(ui.theme.primary.bold('  MCP CLIENT BRIDGE'), ui.theme.border, 78));
+      console.log(drawBoxRow('    /mcp status       Show connected MCP servers status', ui.theme.border, 78));
+      console.log(drawBoxRow('    /mcp tools [srv]  List active tools from all/specific server', ui.theme.border, 78));
+      console.log(drawBoxRow('    /mcp connect <n> <c> [a...] Connect new external stdio MCP server', ui.theme.border, 78));
+      console.log(drawBoxRow('    /mcp disconnect <n> Disconnect external MCP server', ui.theme.border, 78));
       console.log(drawBoxRow('', ui.theme.border, 78));
       console.log(drawBoxRow(ui.theme.primary.bold('  SYSTEM'), ui.theme.border, 78));
       console.log(drawBoxRow('    /health           Re-run system health check', ui.theme.border, 78));
@@ -795,6 +831,158 @@ async function main() {
       return;
     }
 
+    // ── /mcp ─────────────────────────────────────────────────────
+    else if (input.startsWith('/mcp')) {
+      const parts = input.split(' ');
+      const subCommand = parts[1] ? parts[1].toLowerCase() : 'status';
+
+      if (subCommand === 'status' || subCommand === 'list') {
+        const servers = agent.mcpClientManager.getServersStatus();
+        if (servers.length === 0) {
+          console.log('');
+          console.log(drawDoubleBoxHeader('NEX AI — MCP SERVER STATUS', ui.theme.border, 78));
+          console.log(drawDoubleBoxRow(ui.theme.warning('No external MCP servers connected.'), ui.theme.border, 78));
+          console.log(drawDoubleBoxRow(ui.theme.secondary('Use: /mcp connect <name> <command> [args...] to connect.'), ui.theme.border, 78));
+          console.log(drawDoubleBoxFooter(ui.theme.border, 78));
+          console.log('');
+        } else {
+          console.log('');
+          console.log(drawDoubleBoxHeader('NEX AI — MCP SERVER STATUS', ui.theme.border, 78));
+          
+          const nameColWidth = 15;
+          const statusColWidth = 12;
+          const toolsColWidth = 8;
+          const cmdColWidth = 35;
+          
+          const header = 
+            padLine(ui.theme.primary.bold('Server Name'), nameColWidth) + ui.theme.secondary('│') +
+            padLine(ui.theme.primary.bold('Status'), statusColWidth) + ui.theme.secondary('│') +
+            padLine(ui.theme.primary.bold('Tools'), toolsColWidth, 'center') + ui.theme.secondary('│') +
+            padLine(ui.theme.primary.bold('Command / Args'), cmdColWidth);
+          
+          console.log(drawDoubleBoxRow(header, ui.theme.border, 78));
+          console.log(drawDoubleBoxRow(
+            ui.theme.secondary('─'.repeat(nameColWidth) + '┼' + '─'.repeat(statusColWidth) + '┼' + '─'.repeat(toolsColWidth) + '┼' + '─'.repeat(cmdColWidth)), 
+            ui.theme.border, 
+            78
+          ));
+          
+          for (const s of servers) {
+            const cmdStr = `${s.command} ${s.args}`.trim();
+            const truncatedCmd = cmdStr.length > cmdColWidth - 3 ? cmdStr.substring(0, cmdColWidth - 3) + '...' : cmdStr;
+            const row = 
+              padLine(ui.theme.text(s.name), nameColWidth) + ui.theme.secondary('│') +
+              padLine(ui.theme.success('🟢 Connected'), statusColWidth) + ui.theme.secondary('│') +
+              padLine(ui.theme.text(String(s.toolsCount)), toolsColWidth, 'center') + ui.theme.secondary('│') +
+              padLine(ui.theme.secondary(truncatedCmd), cmdColWidth);
+            console.log(drawDoubleBoxRow(row, ui.theme.border, 78));
+          }
+          console.log(drawDoubleBoxFooter(ui.theme.border, 78));
+          console.log('');
+        }
+      } 
+      else if (subCommand === 'tools') {
+        const targetServer = parts[2] ? parts[2].trim() : null;
+        let serversToShow = [];
+        
+        if (targetServer) {
+          const serverData = agent.mcpClientManager.servers.get(targetServer);
+          if (!serverData) {
+            ui.printError(`No connected MCP server found with name "${targetServer}".`);
+            rl.prompt();
+            return;
+          }
+          serversToShow.push({ name: targetServer, tools: serverData.tools });
+        } else {
+          for (const [name, data] of agent.mcpClientManager.servers.entries()) {
+            serversToShow.push({ name, tools: data.tools });
+          }
+        }
+        
+        const totalTools = serversToShow.reduce((acc, s) => acc + s.tools.length, 0);
+        if (totalTools === 0) {
+          console.log('');
+          console.log(drawDoubleBoxHeader('DISCOVERED MCP TOOLS', ui.theme.border, 78));
+          console.log(drawDoubleBoxRow(ui.theme.warning('No dynamic MCP tools found.'), ui.theme.border, 78));
+          console.log(drawDoubleBoxFooter(ui.theme.border, 78));
+          console.log('');
+        } else {
+          console.log('');
+          console.log(drawDoubleBoxHeader(`DISCOVERED MCP TOOLS (${totalTools} total)`, ui.theme.border, 78));
+          
+          let first = true;
+          for (const s of serversToShow) {
+            for (const t of s.tools) {
+              if (!first) {
+                console.log(drawDoubleBoxSeparator(ui.theme.border, 78));
+              }
+              first = false;
+              
+              const prefixedName = `${s.name}__${t.name}`;
+              console.log(drawDoubleBoxRow(`${ui.theme.primary.bold('Tool:')} ${ui.theme.text(prefixedName)}`, ui.theme.border, 78));
+              
+              const desc = t.description || '(No description provided)';
+              const descLines = wrapText(desc, 66);
+              descLines.forEach((line, idx) => {
+                const prefix = idx === 0 ? `${ui.theme.secondary('Desc:')} ` : '      ';
+                console.log(drawDoubleBoxRow(prefix + ui.theme.secondary(line), ui.theme.border, 78));
+              });
+            }
+          }
+          console.log(drawDoubleBoxFooter(ui.theme.border, 78));
+          console.log('');
+        }
+      } 
+      else if (subCommand === 'connect') {
+        if (parts.length < 4) {
+          ui.printError('Usage: /mcp connect <name> <command> [args...]');
+          rl.prompt();
+          return;
+        }
+        const name = parts[2];
+        const command = parts[3];
+        
+        const rawArgs = parts.slice(4);
+        const joinedArgs = rawArgs.join(' ');
+        const argRegex = /"[^"]+"|[^\s"]+/g;
+        const parsedArgs = [];
+        let match;
+        while ((match = argRegex.exec(joinedArgs)) !== null) {
+          parsedArgs.push(match[0].replace(/"/g, ''));
+        }
+        
+        const spinner = ui.createSpinner(`Connecting to external MCP server "${name}"...`).start();
+        try {
+          const tools = await agent.mcpClientManager.connectServer(name, command, parsedArgs, true);
+          spinner.stop();
+          ui.printSuccess(`Successfully connected external MCP server: ${name}`);
+          ui.printInfo(`Registered ${tools.length} dynamic tools with prefix "${name}__".`);
+        } catch (error) {
+          spinner.stop();
+          ui.printError(`Failed to connect MCP server: ${error.message}`);
+        }
+      } 
+      else if (subCommand === 'disconnect') {
+        if (parts.length < 3) {
+          ui.printError('Usage: /mcp disconnect <name>');
+          rl.prompt();
+          return;
+        }
+        const name = parts[2];
+        try {
+          await agent.mcpClientManager.disconnectServer(name);
+        } catch (error) {
+          ui.printError(`Failed to disconnect: ${error.message}`);
+        }
+      } 
+      else {
+        ui.printError(`Unknown MCP command: "${subCommand}". Valid: status, tools, connect, disconnect`);
+      }
+      
+      rl.prompt();
+      return;
+    }
+
     // ── /config ─────────────────────────────────────────────────
     else if (input.startsWith('/config')) {
       const parts = input.split(' ');
@@ -1005,8 +1193,9 @@ async function main() {
     await agent.chat(input);
     rl.resume();
     rl.prompt();
-  }).on('close', () => {
+  }).on('close', async () => {
     ui.printInfo('[EXIT] Session closed');
+    await cleanShutdown(agent);
     ui.logSessionEnd();
     console.log('\nGoodbye!');
     process.exit(0);

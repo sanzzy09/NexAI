@@ -218,6 +218,119 @@ export function drawDoubleBoxFooter(colorFn, totalWidth = 78) {
   return finalColorFn('╚' + '═'.repeat(totalWidth - 2) + '╝');
 }
 
+export function formatMarkdownTables(text) {
+  if (!text) return text;
+  const lines = text.split('\n');
+  const resultLines = [];
+  let tableLines = [];
+
+  const processTable = () => {
+    if (tableLines.length === 0) return;
+    
+    // Check if there is a valid delimiter row
+    const delimiterIndex = tableLines.findIndex(l => {
+      const stripped = l.replace(/[\s|:\-]/g, '');
+      return stripped === '' && l.includes('|');
+    });
+
+    if (delimiterIndex === -1 || delimiterIndex === 0) {
+      // Not a valid table
+      resultLines.push(...tableLines);
+      tableLines = [];
+      return;
+    }
+
+    try {
+      const parseRow = (line) => {
+        let trimmed = line.trim();
+        if (trimmed.startsWith('|')) trimmed = trimmed.substring(1);
+        if (trimmed.endsWith('|')) trimmed = trimmed.substring(0, trimmed.length - 1);
+        return trimmed.split('|').map(c => c.trim());
+      };
+
+      const headerCells = parseRow(tableLines[delimiterIndex - 1]);
+      const delimiterCells = parseRow(tableLines[delimiterIndex]);
+      
+      const bodyRows = [];
+      for (let i = 0; i < tableLines.length; i++) {
+        if (i === delimiterIndex || i === delimiterIndex - 1) continue;
+        bodyRows.push(parseRow(tableLines[i]));
+      }
+
+      const alignments = delimiterCells.map(cell => {
+        const trimmed = cell.trim();
+        const start = trimmed.startsWith(':');
+        const end = trimmed.endsWith(':');
+        if (start && end) return 'center';
+        if (end) return 'right';
+        return 'left';
+      });
+
+      const numCols = Math.max(headerCells.length, ...bodyRows.map(r => r.length));
+
+      while (alignments.length < numCols) alignments.push('left');
+      while (headerCells.length < numCols) headerCells.push('');
+      bodyRows.forEach(row => {
+        while (row.length < numCols) row.push('');
+      });
+
+      const colWidths = [];
+      for (let c = 0; c < numCols; c++) {
+        let maxWidth = getVisualWidth(headerCells[c]);
+        for (const row of bodyRows) {
+          maxWidth = Math.max(maxWidth, getVisualWidth(row[c]));
+        }
+        colWidths.push(Math.max(maxWidth, 3));
+      }
+
+      const borderCol = ui.theme.border;
+      const primaryCol = ui.theme.primary;
+      const textCol = ui.theme.text || chalk.white;
+
+      const topBorder = borderCol('┌' + colWidths.map(w => '─'.repeat(w + 2)).join('┬') + '┐');
+      const headerRow = borderCol('│') + headerCells.map((cell, idx) => ' ' + primaryCol.bold(padLine(cell, colWidths[idx], alignments[idx])) + ' ').join(borderCol('│')) + borderCol('│');
+      const midBorder = borderCol('├' + colWidths.map(w => '─'.repeat(w + 2)).join('┼') + '┤');
+      const bodyRowsStr = bodyRows.map(row => {
+        return borderCol('│') + row.map((cell, idx) => ' ' + textCol(padLine(cell, colWidths[idx], alignments[idx])) + ' ').join(borderCol('│')) + borderCol('│');
+      }).join('\n');
+      const bottomBorder = borderCol('└' + colWidths.map(w => '─'.repeat(w + 2)).join('┴') + '┘');
+
+      const formattedTable = [
+        topBorder,
+        headerRow,
+        midBorder,
+        bodyRowsStr,
+        bottomBorder
+      ].join('\n');
+
+      resultLines.push(formattedTable);
+    } catch (e) {
+      resultLines.push(...tableLines);
+    }
+    tableLines = [];
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const isTableRow = line.includes('|');
+
+    if (isTableRow) {
+      tableLines.push(line);
+    } else {
+      if (tableLines.length > 0) {
+        processTable();
+      }
+      resultLines.push(line);
+    }
+  }
+
+  if (tableLines.length > 0) {
+    processTable();
+  }
+
+  return resultLines.join('\n');
+}
+
 export function formatAIResponse(text) {
   if (!text) return text;
   
@@ -241,7 +354,7 @@ export function formatAIResponse(text) {
     }
   });
 
-  return formatted;
+  return formatMarkdownTables(formatted);
 }
 
 export const ui = {
@@ -270,18 +383,41 @@ export const ui = {
   },
 
   showBanner() {
-    const l1 = ui.theme.primary.bold('  ███╗   ██╗███████╗██╗  ██╗     █████╗ ██╗');
-    const l2 = ui.theme.primary.bold('  ████╗  ██║██╔════╝╚██╗██╔╝    ██╔══██╗██║');
-    const l3 = ui.theme.primary.bold('  ██╔██╗ ██║█████╗   ╚███╔╝     ███████║██║');
-    const l4 = ui.theme.primary.bold('  ██║╚██╗██║██╔══╝   ██╔██╗     ██╔══██║██║');
-    const l5 = ui.theme.primary.bold('  ██║ ╚████║███████╗██╔╝ ██╗    ██║  ██║██║');
-    const l6 = ui.theme.primary.bold('  ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝    ╚═╝  ╚═╝╚═╝');
+    const border = ui.theme.border;
+    const primary = ui.theme.primary;
+    const success = ui.theme.success;
+    const secondary = ui.theme.secondary;
 
-    console.log(`\n${l1}\n${l2}\n${l3}\n${l4}\n${l5}\n${l6}`);
-    console.log(ui.theme.primary.bold('  ═══════════════════════════════════════════'));
-    console.log(ui.theme.success.bold('   Terminal AI Coding Agent  |  Active & Ready'));
-    console.log(ui.theme.secondary('  ═══════════════════════════════════════════'));
-    console.log(ui.theme.secondary('   Type /help for commands, /exit to quit.\n'));
+    const logo = [
+      '    _  _________  __   ___    ____',
+      '   / |/ / __/ _ \\/ /  / _ |  /  _/',
+      '  /    / _// , _/_/  / __ | _/ /  ',
+      ' /_/|_/___/_/|_(_)  /_/ |_/ /___/  '
+    ];
+
+    console.log(border('╔' + '═'.repeat(76) + '╗'));
+    
+    // Logo block
+    logo.forEach(line => {
+      const padded = padLine(line, 72, 'center');
+      console.log(border('║  ') + primary.bold(padded) + border('  ║'));
+    });
+    
+    console.log(border('╠' + '═'.repeat(76) + '╣'));
+    
+    // Status block
+    const statusText = '⚡ TERMINAL AI CODING AGENT  |  🟢 SYSTEM HEALTH: EXCELLENT';
+    const paddedStatus = padLine(statusText, 72, 'center');
+    console.log(border('║  ') + success.bold(paddedStatus) + border('  ║'));
+    
+    console.log(border('╠' + '═'.repeat(76) + '╣'));
+    
+    // Command tip block
+    const tips = 'Type /help for command list  •  /exit to quit  •  /theme to customize';
+    const paddedTips = padLine(tips, 72, 'center');
+    console.log(border('║  ') + secondary(paddedTips) + border('  ║'));
+    
+    console.log(border('╚' + '═'.repeat(76) + '╝') + '\n');
   },
 
   userPrompt() {
@@ -292,21 +428,19 @@ export const ui = {
     console.log(ui.theme.primary.bold('[USER] ') + ui.theme.text(message));
   },
 
-  printAI(message) {
+  printAI(message, usage) {
     if (message) {
       const formatted = formatAIResponse(message);
       console.log(ui.theme.success.bold('[NEX AI] ') + ui.theme.text(formatted));
+      if (usage) {
+        const prompt = usage.promptTokens || usage.prompt_tokens || 0;
+        const completion = usage.completionTokens || usage.completion_tokens || 0;
+        const total = usage.totalTokens || usage.total_tokens || 0;
+        console.log(
+          '  ' + ui.theme.secondary('└─ ') + ui.theme.primary('⚡ Tokens:') + ui.theme.secondary(` Prompt: ${prompt} | Completion: ${completion} | Total: ${total}`)
+        );
+      }
     }
-  },
-
-  printTokenUsage(usage) {
-    if (!usage) return;
-    const prompt = usage.promptTokens || usage.prompt_tokens || 0;
-    const completion = usage.completionTokens || usage.completion_tokens || 0;
-    const total = usage.totalTokens || usage.total_tokens || 0;
-    console.log(
-      ui.theme.secondary(`\n  [Usage Token - Prompt: ${prompt} | Completion: ${completion} | Total: ${total}]`)
-    );
   },
 
   printToolCall(toolName, args) {
