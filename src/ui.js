@@ -228,12 +228,12 @@ export function formatAIResponse(text) {
       const parsed = JSON.parse(code.trim());
       const pretty = JSON.stringify(parsed, null, 2);
       
-      const header = drawBoxHeader('JSON RESPONSE', chalk.cyan, 78);
+      const header = drawBoxHeader('JSON RESPONSE', ui.theme.primary, 78);
       const rows = pretty.split('\n').flatMap(line => {
         const wrapped = wrapText(line, 74);
-        return wrapped.map(wl => drawBoxRow(wl, chalk.cyan, 78));
+        return wrapped.map(wl => drawBoxRow(wl, ui.theme.primary, 78));
       }).join('\n');
-      const footer = drawBoxFooter(chalk.cyan, 78);
+      const footer = drawBoxFooter(ui.theme.primary, 78);
       
       return `\n${header}\n${rows}\n${footer}`;
     } catch (e) {
@@ -245,33 +245,57 @@ export function formatAIResponse(text) {
 }
 
 export const ui = {
+  setTheme(name) {
+    if (themes[name]) {
+      activeThemeName = name;
+      return true;
+    }
+    return false;
+  },
+
+  getAvailableThemes() {
+    return Object.keys(themes);
+  },
+
+  get theme() {
+    return themes[activeThemeName];
+  },
+
+  get activeThemeName() {
+    return activeThemeName;
+  },
+
+  getTheme(name) {
+    return themes[name];
+  },
+
   showBanner() {
-    const l1 = chalk.hex('#FF007F').bold('  ███╗   ██╗███████╗██╗  ██╗     █████╗ ██╗');
-    const l2 = chalk.hex('#D100F3').bold('  ████╗  ██║██╔════╝╚██╗██╔╝    ██╔══██╗██║');
-    const l3 = chalk.hex('#A020F0').bold('  ██╔██╗ ██║█████╗   ╚███╔╝     ███████║██║');
-    const l4 = chalk.hex('#6A0DAD').bold('  ██║╚██╗██║██╔══╝   ██╔██╗     ██╔══██║██║');
-    const l5 = chalk.hex('#0080FF').bold('  ██║ ╚████║███████╗██╔╝ ██╗    ██║  ██║██║');
-    const l6 = chalk.hex('#00FFFF').bold('  ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝    ╚═╝  ╚═╝╚═╝');
+    const l1 = ui.theme.primary.bold('  ███╗   ██╗███████╗██╗  ██╗     █████╗ ██╗');
+    const l2 = ui.theme.primary.bold('  ████╗  ██║██╔════╝╚██╗██╔╝    ██╔══██╗██║');
+    const l3 = ui.theme.primary.bold('  ██╔██╗ ██║█████╗   ╚███╔╝     ███████║██║');
+    const l4 = ui.theme.primary.bold('  ██║╚██╗██║██╔══╝   ██╔██╗     ██╔══██║██║');
+    const l5 = ui.theme.primary.bold('  ██║ ╚████║███████╗██╔╝ ██╗    ██║  ██║██║');
+    const l6 = ui.theme.primary.bold('  ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝    ╚═╝  ╚═╝╚═╝');
 
     console.log(`\n${l1}\n${l2}\n${l3}\n${l4}\n${l5}\n${l6}`);
-    console.log(chalk.hex('#00E5FF').bold('  ═══════════════════════════════════════════'));
-    console.log(chalk.hex('#00FFCC').bold('   Terminal AI Coding Agent  |  Active & Ready'));
-    console.log(chalk.gray('  ═══════════════════════════════════════════'));
-    console.log(chalk.gray('   Type /help for commands, /exit to quit.\n'));
+    console.log(ui.theme.primary.bold('  ═══════════════════════════════════════════'));
+    console.log(ui.theme.success.bold('   Terminal AI Coding Agent  |  Active & Ready'));
+    console.log(ui.theme.secondary('  ═══════════════════════════════════════════'));
+    console.log(ui.theme.secondary('   Type /help for commands, /exit to quit.\n'));
   },
 
   userPrompt() {
-    return chalk.cyan.bold('\n> ');
+    return ui.theme.primary.bold('\n> ');
   },
 
   printUser(message) {
-    console.log(chalk.cyan.bold('[USER] ') + chalk.cyan(message));
+    console.log(ui.theme.primary.bold('[USER] ') + ui.theme.text(message));
   },
 
   printAI(message) {
     if (message) {
       const formatted = formatAIResponse(message);
-      console.log(chalk.green.bold('[NEX AI] ') + chalk.green(formatted));
+      console.log(ui.theme.success.bold('[NEX AI] ') + ui.theme.text(formatted));
     }
   },
 
@@ -281,218 +305,227 @@ export const ui = {
     const completion = usage.completionTokens || usage.completion_tokens || 0;
     const total = usage.totalTokens || usage.total_tokens || 0;
     console.log(
-      chalk.gray(`\n  [Usage Token - Prompt: ${prompt} | Completion: ${completion} | Total: ${total}]`)
+      ui.theme.secondary(`\n  [Usage Token - Prompt: ${prompt} | Completion: ${completion} | Total: ${total}]`)
     );
   },
 
   printToolCall(toolName, args) {
     const rows = [];
-    rows.push(chalk.yellow(`Tool:      `) + chalk.yellow.bold(toolName));
+    rows.push(ui.theme.warning(`Tool:      `) + ui.theme.warning.bold(toolName));
     
     if (toolName === 'run_command' && args.command) {
-      rows.push(chalk.yellow(`Command:   `) + chalk.cyan(`$ ${args.command}`));
+      rows.push(ui.theme.warning(`Command:   `) + ui.theme.primary(`$ ${args.command}`));
       if (args.timeoutMs) {
-        rows.push(chalk.yellow(`Timeout:   `) + chalk.gray(`${args.timeoutMs}ms`));
+        rows.push(ui.theme.warning(`Timeout:   `) + ui.theme.secondary(`${args.timeoutMs}ms`));
       }
     } else if (['file_create', 'file_read', 'file_update', 'file_delete'].includes(toolName) && (args.filePath || args.path)) {
-      rows.push(chalk.yellow(`File:      `) + chalk.cyan(args.filePath || args.path));
+      rows.push(ui.theme.warning(`File:      `) + ui.theme.primary(args.filePath || args.path));
       if (args.mode) {
-        rows.push(chalk.yellow(`Mode:      `) + chalk.cyan(args.mode));
+        rows.push(ui.theme.warning(`Mode:      `) + ui.theme.primary(args.mode));
       }
       if (args.content) {
         const lines = args.content.split('\n');
-        rows.push(chalk.yellow(`Size:      `) + chalk.gray(`${lines.length} lines (${args.content.length} chars)`));
-        rows.push(chalk.yellow(`Preview:   `));
+        rows.push(ui.theme.warning(`Size:      `) + ui.theme.secondary(`${lines.length} lines (${args.content.length} chars)`));
+        rows.push(ui.theme.warning(`Preview:   `));
         const previewLines = lines.slice(0, 5);
         previewLines.forEach(l => {
-          rows.push(chalk.gray(`  ${l.substring(0, 70)}${l.length > 70 ? '...' : ''}`));
+          rows.push(ui.theme.secondary(`  ${l.substring(0, 70)}${l.length > 70 ? '...' : ''}`));
         });
         if (lines.length > 5) {
-          rows.push(chalk.gray(`  ... and ${lines.length - 5} more lines`));
+          rows.push(ui.theme.secondary(`  ... and ${lines.length - 5} more lines`));
         }
       }
     } else if (toolName === 'list_directory') {
-      rows.push(chalk.yellow(`Directory: `) + chalk.cyan(args.dirPath || args.path || '.'));
+      rows.push(ui.theme.warning(`Directory: `) + ui.theme.primary(args.dirPath || args.path || '.'));
     } else if (toolName === 'search_files' && args.query) {
-      rows.push(chalk.yellow(`Search:    `) + chalk.cyan(`"${args.query}"`));
-      rows.push(chalk.yellow(`Directory: `) + chalk.cyan(args.dirPath || args.path || '.'));
+      rows.push(ui.theme.warning(`Search:    `) + ui.theme.primary(`"${args.query}"`));
+      rows.push(ui.theme.warning(`Directory: `) + ui.theme.primary(args.dirPath || args.path || '.'));
       if (args.fileExtension) {
-        rows.push(chalk.yellow(`Extension: `) + chalk.cyan(args.fileExtension));
+        rows.push(ui.theme.warning(`Extension: `) + ui.theme.primary(args.fileExtension));
       }
     } else if (toolName.startsWith('memory_')) {
-      if (args.key) rows.push(chalk.yellow(`Key:       `) + chalk.cyan(args.key));
-      if (args.value) rows.push(chalk.yellow(`Value:     `) + chalk.cyan(args.value));
-      if (args.query) rows.push(chalk.yellow(`Query:     `) + chalk.cyan(args.query));
-      if (args.insight) rows.push(chalk.yellow(`Insight:   `) + chalk.cyan(args.insight));
+      if (args.key) rows.push(ui.theme.warning(`Key:       `) + ui.theme.primary(args.key));
+      if (args.value) rows.push(ui.theme.warning(`Value:     `) + ui.theme.primary(args.value));
+      if (args.query) rows.push(ui.theme.warning(`Query:     `) + ui.theme.primary(args.query));
+      if (args.insight) rows.push(ui.theme.warning(`Insight:   `) + ui.theme.primary(args.insight));
     } else {
-      rows.push(chalk.yellow(`Arguments: `));
+      rows.push(ui.theme.warning(`Arguments: `));
       for (const [key, value] of Object.entries(args || {})) {
         if (typeof value === 'string' && value.includes('\n')) {
-          rows.push(chalk.cyan(`  ${key}: `) + chalk.gray(`(multi-line string, ${value.length} chars)`));
+          rows.push(ui.theme.primary(`  ${key}: `) + ui.theme.secondary(`(multi-line string, ${value.length} chars)`));
           const lines = value.split('\n');
           lines.slice(0, 5).forEach(l => {
-            rows.push(chalk.gray(`    ${l.substring(0, 66)}${l.length > 66 ? '...' : ''}`));
+            rows.push(ui.theme.secondary(`    ${l.substring(0, 66)}${l.length > 66 ? '...' : ''}`));
           });
           if (lines.length > 5) {
-            rows.push(chalk.gray(`    ... and ${lines.length - 5} more lines`));
+            rows.push(ui.theme.secondary(`    ... and ${lines.length - 5} more lines`));
           }
         } else if (typeof value === 'object' && value !== null) {
-          rows.push(chalk.cyan(`  ${key}: `));
+          rows.push(ui.theme.primary(`  ${key}: `));
           JSON.stringify(value, null, 2).split('\n').forEach(l => {
-            rows.push(chalk.gray(`    ${l}`));
+            rows.push(ui.theme.secondary(`    ${l}`));
           });
         } else {
-          rows.push(chalk.cyan(`  ${key}: `) + chalk.white(value));
+          rows.push(ui.theme.primary(`  ${key}: `) + ui.theme.text(value));
         }
       }
     }
     
     console.log('');
-    console.log(drawBoxHeader('⚙️  TOOL CALL', chalk.yellow, 78));
+    console.log(drawBoxHeader('⚙️  TOOL CALL', ui.theme.warning, 78));
     rows.forEach(r => {
       const wrapped = wrapText(r, 74);
       wrapped.forEach(wr => {
-        console.log(drawBoxRow(wr, chalk.yellow, 78));
+        console.log(drawBoxRow(wr, ui.theme.warning, 78));
       });
     });
-    console.log(drawBoxFooter(chalk.yellow, 78));
+    console.log(drawBoxFooter(ui.theme.warning, 78));
   },
 
   printToolResult(toolName, result) {
     const rows = [];
-    rows.push(chalk.green(`Source:    `) + chalk.green.bold(toolName));
+    rows.push(ui.theme.success(`Source:    `) + ui.theme.success.bold(toolName));
 
     try {
       const parsed = JSON.parse(result);
       
       if (toolName === 'run_command') {
-        const status = parsed.success ? chalk.green.bold('SUCCESS') : chalk.red.bold('FAILED');
-        rows.push(chalk.green(`Status:    `) + status);
+        const status = parsed.success ? ui.theme.success.bold('SUCCESS') : ui.theme.error.bold('FAILED');
+        rows.push(ui.theme.success(`Status:    `) + status);
         
         if (parsed.stdout && parsed.stdout.trim()) {
-          rows.push(chalk.green(`Stdout:    `));
+          rows.push(ui.theme.success(`Stdout:    `));
           const lines = parsed.stdout.split('\n');
           const previewLines = lines.slice(0, 10);
           previewLines.forEach(l => {
-            rows.push(chalk.white(`  ${l.substring(0, 70)}${l.length > 70 ? '...' : ''}`));
+            rows.push(ui.theme.text(`  ${l.substring(0, 70)}${l.length > 70 ? '...' : ''}`));
           });
           if (lines.length > 10) {
-            rows.push(chalk.gray(`  ... and ${lines.length - 10} more lines`));
+            rows.push(ui.theme.secondary(`  ... and ${lines.length - 10} more lines`));
           }
         }
         if (parsed.stderr && parsed.stderr.trim()) {
-          rows.push(chalk.red(`Stderr:    `));
+          rows.push(ui.theme.error(`Stderr:    `));
           const lines = parsed.stderr.split('\n');
           lines.forEach(l => {
-            rows.push(chalk.red(`  ${l.substring(0, 70)}`));
+            rows.push(ui.theme.error(`  ${l.substring(0, 70)}`));
           });
         }
         if (parsed.error) {
-          rows.push(chalk.red(`Error:     `) + chalk.red.bold(parsed.error));
+          rows.push(ui.theme.error(`Error:     `) + ui.theme.error.bold(parsed.error));
         }
       } else if (toolName === 'list_directory') {
         if (parsed.success && Array.isArray(parsed.files)) {
-          rows.push(chalk.green(`Contents:  `));
+          rows.push(ui.theme.success(`Contents:  `));
           parsed.files.forEach(f => {
-            const prefix = f.isDir ? chalk.blue('📁 ') : chalk.gray('📄 ');
-            const details = f.size !== undefined ? chalk.gray(` (${f.size} bytes)`) : '';
+            const prefix = f.isDir ? ui.theme.primary('📁 ') : ui.theme.secondary('📄 ');
+            const details = f.size !== undefined ? ui.theme.secondary(` (${f.size} bytes)`) : '';
             rows.push(`  ${prefix}${f.name}${details}`);
           });
         } else {
-          rows.push(chalk.green(`Result:    `) + chalk.white(JSON.stringify(parsed)));
+          rows.push(ui.theme.success(`Result:    `) + ui.theme.text(JSON.stringify(parsed)));
         }
       } else if (toolName === 'search_files') {
         if (parsed.success && Array.isArray(parsed.matches)) {
-          rows.push(chalk.green(`Matches:   `) + chalk.white(`${parsed.matches.length} found`));
+          rows.push(ui.theme.success(`Matches:   `) + ui.theme.text(`${parsed.matches.length} found`));
           parsed.matches.slice(0, 10).forEach(m => {
-            rows.push(chalk.cyan(`${m.file}:${m.line} `) + chalk.white(m.content.trim()));
+            rows.push(ui.theme.primary(`${m.file}:${m.line} `) + ui.theme.text(m.content.trim()));
           });
           if (parsed.matches.length > 10) {
-            rows.push(chalk.gray(`  ... and ${parsed.matches.length - 10} more matches`));
+            rows.push(ui.theme.secondary(`  ... and ${parsed.matches.length - 10} more matches`));
           }
         } else {
-          rows.push(chalk.green(`Result:    `) + chalk.white(JSON.stringify(parsed)));
+          rows.push(ui.theme.success(`Result:    `) + ui.theme.text(JSON.stringify(parsed)));
         }
       } else {
-        rows.push(chalk.green(`JSON:      `));
+        rows.push(ui.theme.success(`JSON:      `));
         const lines = JSON.stringify(parsed, null, 2).split('\n');
         lines.slice(0, 15).forEach(l => {
-          rows.push(chalk.white(`  ${l}`));
+          rows.push(ui.theme.text(`  ${l}`));
         });
         if (lines.length > 15) {
-          rows.push(chalk.gray(`  ... truncated (${lines.length - 15} more lines)`));
+          rows.push(ui.theme.secondary(`  ... truncated (${lines.length - 15} more lines)`));
         }
       }
     } catch (e) {
       const lines = result.split('\n');
       const previewLines = lines.slice(0, 10);
-      rows.push(chalk.green(`Output:    `));
+      rows.push(ui.theme.success(`Output:    `));
       previewLines.forEach(l => {
-        rows.push(chalk.white(`  ${l.substring(0, 70)}${l.length > 70 ? '...' : ''}`));
+        rows.push(ui.theme.text(`  ${l.substring(0, 70)}${l.length > 70 ? '...' : ''}`));
       });
       if (lines.length > 10) {
-        rows.push(chalk.gray(`  ... and ${lines.length - 10} more lines`));
+        rows.push(ui.theme.secondary(`  ... and ${lines.length - 10} more lines`));
       }
     }
 
-    console.log(drawBoxHeader('✓ TOOL RESULT', chalk.green, 78));
+    console.log(drawBoxHeader('✓ TOOL RESULT', ui.theme.success, 78));
     rows.forEach(r => {
       const wrapped = wrapText(r, 74);
       wrapped.forEach(wr => {
-        console.log(drawBoxRow(wr, chalk.green, 78));
+        console.log(drawBoxRow(wr, ui.theme.success, 78));
       });
     });
-    console.log(drawBoxFooter(chalk.green, 78));
+    console.log(drawBoxFooter(ui.theme.success, 78));
   },
 
   printSafetyAlert(result, message) {
     const rows = [];
-    rows.push(chalk.red.bold('SECURITY THREAT DETECTED AND BLOCKED'));
-    rows.push(chalk.white(`Message:    `) + chalk.gray(`"${message.substring(0, 50)}${message.length > 50 ? '...' : ''}"`));
-    rows.push(chalk.white(`Severity:   `) + chalk.red.bold(result.severity));
-    rows.push(chalk.white(`Threat:     `) + chalk.yellow.bold(result.reasons.join(', ')));
-    rows.push(chalk.white(`Action:     `) + chalk.red.bold(result.action.toUpperCase()));
+    rows.push(ui.theme.error.bold('SECURITY THREAT DETECTED AND BLOCKED'));
+    rows.push(ui.theme.text(`Message:    `) + ui.theme.secondary(`"${message.substring(0, 50)}${message.length > 50 ? '...' : ''}"`));
+    rows.push(ui.theme.text(`Severity:   `) + ui.theme.error.bold(result.severity));
+    rows.push(ui.theme.text(`Threat:     `) + ui.theme.warning.bold(result.reasons.join(', ')));
+    rows.push(ui.theme.text(`Action:     `) + ui.theme.error.bold(result.action.toUpperCase()));
 
     console.log('');
-    console.log(drawBoxHeader('🚨 SAFETY SHIELD', chalk.red, 78));
+    console.log(drawBoxHeader('🚨 SAFETY SHIELD', ui.theme.error, 78));
     rows.forEach(r => {
       const wrapped = wrapText(r, 74);
       wrapped.forEach(wr => {
-        console.log(drawBoxRow(wr, chalk.red, 78));
+        console.log(drawBoxRow(wr, ui.theme.error, 78));
       });
     });
-    console.log(drawBoxFooter(chalk.red, 78));
+    console.log(drawBoxFooter(ui.theme.error, 78));
     console.log('');
   },
 
   printError(message) {
-    console.log(chalk.red.bold('\n✗ [ERROR] ') + chalk.red(message));
+    console.log(ui.theme.error.bold('\n✗ [ERROR] ') + ui.theme.error(message));
   },
 
   printDebug(message) {
     if (currentLevel <= logLevel.DEBUG) {
-      console.log(chalk.blue.bold('[DEBUG] ') + chalk.blue(message));
+      console.log(ui.theme.secondary.bold('[DEBUG] ') + ui.theme.secondary(message));
     }
   },
 
   printInfo(message) {
     if (currentLevel <= logLevel.INFO) {
-      console.log(chalk.gray('[INFO] ') + message);
+      console.log(ui.theme.secondary('[INFO] ') + message);
     }
   },
 
   printSuccess(message) {
-    console.log(chalk.green.bold('✔ ') + chalk.green(message));
+    console.log(ui.theme.success.bold('✔ ') + ui.theme.success(message));
   },
 
   printWarning(message) {
     if (currentLevel <= logLevel.WARN) {
-      console.log(chalk.yellow.bold('[WARN] ') + chalk.yellow(message));
+      console.log(ui.theme.warning.bold('[WARN] ') + ui.theme.warning(message));
     }
   },
 
   createSpinner(text) {
-    const spinner = ora({ text, color: 'gray', discardStdin: false }).start();
+    const spinnerColors = {
+      classic: 'cyan',
+      dracula: 'magenta',
+      cyberpunk: 'yellow',
+      nord: 'blue',
+      matrix: 'green',
+      sunset: 'red'
+    };
+    const spinnerColor = spinnerColors[activeThemeName] || 'cyan';
+    const spinner = ora({ text, color: spinnerColor, discardStdin: false }).start();
     return {
       start() { return this; },
       stop() { spinner.stop(); },

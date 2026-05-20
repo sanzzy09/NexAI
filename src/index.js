@@ -1,7 +1,20 @@
 // This Code Modified By NexAI
 import readline from 'readline';
 import { Agent } from './agent.js';
-import { ui, drawBoxHeader, drawBoxRow, drawBoxSeparator, drawBoxFooter, getVisualWidth, padLine, wrapText } from './ui.js';
+import { 
+  ui, 
+  drawBoxHeader, 
+  drawBoxRow, 
+  drawBoxSeparator, 
+  drawBoxFooter, 
+  drawDoubleBoxHeader, 
+  drawDoubleBoxRow, 
+  drawDoubleBoxSeparator, 
+  drawDoubleBoxFooter, 
+  getVisualWidth, 
+  padLine, 
+  wrapText 
+} from './ui.js';
 import { config, updateConfig, getConfigDisplay } from './config.js';
 import { changelog, getLatestVersion, formatChangelog } from './changelog.js';
 import path from 'path';
@@ -190,6 +203,11 @@ async function gitPush(commitMsg, branch) {
 }
 
 async function main() {
+  // Set theme from configuration if saved
+  if (config.theme) {
+    ui.setTheme(config.theme);
+  }
+
   ui.showBanner();
 
   // ── Pre-flight: basic env check (fast, no network) ───────────
@@ -289,41 +307,42 @@ async function main() {
     // ── /help ────────────────────────────────────────────────────
     else if (input === '/help') {
       console.log('');
-      console.log(drawBoxHeader('📖 COMMAND LIST', chalk.cyan, 78));
-      console.log(drawBoxRow(chalk.cyan.bold('  SESSION'), chalk.cyan, 78));
-      console.log(drawBoxRow('    /exit, /quit      Quit NEX AI', chalk.cyan, 78));
-      console.log(drawBoxRow('    /clear            Clear conversation history & memory', chalk.cyan, 78));
-      console.log(drawBoxRow('    /reset            Factory reset (clear all data)', chalk.cyan, 78));
-      console.log(drawBoxRow('    /stats            Show session statistics', chalk.cyan, 78));
-      console.log(drawBoxRow('', chalk.cyan, 78));
-      console.log(drawBoxRow(chalk.cyan.bold('  AI & MODEL'), chalk.cyan, 78));
-      console.log(drawBoxRow('    /model [name]     View or switch active LLM model', chalk.cyan, 78));
-      console.log(drawBoxRow('    /defaultmodel     Set default model (persists across sessions)', chalk.cyan, 78));
-      console.log(drawBoxRow('    /apikey [key]     View or change OpenRouter API key', chalk.cyan, 78));
-      console.log(drawBoxRow('    /config           View or edit configuration', chalk.cyan, 78));
-      console.log(drawBoxRow('', chalk.cyan, 78));
-      console.log(drawBoxRow(chalk.cyan.bold('  MEMORY'), chalk.cyan, 78));
-      console.log(drawBoxRow('    /memory           Show memory summary', chalk.cyan, 78));
-      console.log(drawBoxRow('    /history          Show conversation history', chalk.cyan, 78));
-      console.log(drawBoxRow('    /export [file]    Export conversation to JSON file', chalk.cyan, 78));
-      console.log(drawBoxRow('', chalk.cyan, 78));
-      console.log(drawBoxRow(chalk.cyan.bold('  GITHUB'), chalk.cyan, 78));
-      console.log(drawBoxRow('    /gitpush          Push current project to GitHub', chalk.cyan, 78));
-      console.log(drawBoxRow('    /gittoken [token] View or change GitHub Personal Access Token', chalk.cyan, 78));
-      console.log(drawBoxRow('', chalk.cyan, 78));
-      console.log(drawBoxRow(chalk.cyan.bold('  SYSTEM'), chalk.cyan, 78));
-      console.log(drawBoxRow('    /health           Re-run system health check', chalk.cyan, 78));
-      console.log(drawBoxRow('    /debug            Toggle debug mode (verbose logging)', chalk.cyan, 78));
-      console.log(drawBoxRow('    /safety           View or change safety sensitivity', chalk.cyan, 78));
-      console.log(drawBoxRow('    /changelog        Show version changelog', chalk.cyan, 78));
-      console.log(drawBoxRow('', chalk.cyan, 78));
-      console.log(drawBoxRow(chalk.cyan.bold('  TIPS'), chalk.cyan, 78));
-      console.log(drawBoxRow('    • Type /model without args to see available models', chalk.cyan, 78));
-      console.log(drawBoxRow('    • Type /apikey without args to see current key', chalk.cyan, 78));
-      console.log(drawBoxRow('    • Type /gittoken without args to see current token', chalk.cyan, 78));
-      console.log(drawBoxRow('    • Type /config then choose a number to edit a setting', chalk.cyan, 78));
-      console.log(drawBoxRow('    • Type /reset then confirm to wipe all data', chalk.cyan, 78));
-      console.log(drawBoxFooter(chalk.cyan, 78));
+      console.log(drawBoxHeader('📖 COMMAND LIST', ui.theme.primary, 78));
+      console.log(drawBoxRow(ui.theme.primary.bold('  SESSION'), ui.theme.border, 78));
+      console.log(drawBoxRow('    /exit, /quit      Quit NEX AI', ui.theme.border, 78));
+      console.log(drawBoxRow('    /clear            Clear conversation history & memory', ui.theme.border, 78));
+      console.log(drawBoxRow('    /reset            Factory reset (clear all data)', ui.theme.border, 78));
+      console.log(drawBoxRow('    /stats            Show session statistics', ui.theme.border, 78));
+      console.log(drawBoxRow('    /dashboard        Show dynamic dashboard HUD', ui.theme.border, 78));
+      console.log(drawBoxRow('', ui.theme.border, 78));
+      console.log(drawBoxRow(ui.theme.primary.bold('  AI & MODEL'), ui.theme.border, 78));
+      console.log(drawBoxRow('    /model [name]     View or switch active LLM model', ui.theme.border, 78));
+      console.log(drawBoxRow('    /defaultmodel     Set default model (persists across sessions)', ui.theme.border, 78));
+      console.log(drawBoxRow('    /apikey [key]     View or change OpenRouter API key', ui.theme.border, 78));
+      console.log(drawBoxRow('    /config           View or edit configuration', ui.theme.border, 78));
+      console.log(drawBoxRow('', ui.theme.border, 78));
+      console.log(drawBoxRow(ui.theme.primary.bold('  MEMORY'), ui.theme.border, 78));
+      console.log(drawBoxRow('    /memory           Show memory summary', ui.theme.border, 78));
+      console.log(drawBoxRow('    /history          Show conversation history', ui.theme.border, 78));
+      console.log(drawBoxRow('    /export [file]    Export conversation to JSON file', ui.theme.border, 78));
+      console.log(drawBoxRow('', ui.theme.border, 78));
+      console.log(drawBoxRow(ui.theme.primary.bold('  GITHUB'), ui.theme.border, 78));
+      console.log(drawBoxRow('    /gitpush          Push current project to GitHub', ui.theme.border, 78));
+      console.log(drawBoxRow('    /gittoken [token] View or change GitHub Personal Access Token', ui.theme.border, 78));
+      console.log(drawBoxRow('', ui.theme.border, 78));
+      console.log(drawBoxRow(ui.theme.primary.bold('  SYSTEM'), ui.theme.border, 78));
+      console.log(drawBoxRow('    /health           Re-run system health check', ui.theme.border, 78));
+      console.log(drawBoxRow('    /debug            Toggle debug mode (verbose logging)', ui.theme.border, 78));
+      console.log(drawBoxRow('    /safety           View or change safety sensitivity', ui.theme.border, 78));
+      console.log(drawBoxRow('    /theme [name]     View or switch active visual theme', ui.theme.border, 78));
+      console.log(drawBoxRow('    /changelog        Show version changelog', ui.theme.border, 78));
+      console.log(drawBoxRow('', ui.theme.border, 78));
+      console.log(drawBoxRow(ui.theme.primary.bold('  TIPS'), ui.theme.border, 78));
+      console.log(drawBoxRow('    • Type /model without args to see available models', ui.theme.border, 78));
+      console.log(drawBoxRow('    • Type /theme without args to view available themes', ui.theme.border, 78));
+      console.log(drawBoxRow('    • Type /config then choose a number to edit a setting', ui.theme.border, 78));
+      console.log(drawBoxRow('    • Type /reset then confirm to wipe all data', ui.theme.border, 78));
+      console.log(drawBoxFooter(ui.theme.border, 78));
       console.log('');
       rl.prompt();
       return;
@@ -384,27 +403,117 @@ async function main() {
     else if (input === '/stats') {
       const stats = await agent.getSessionStats();
       console.log('');
-      console.log(drawBoxHeader('📊 SESSION STATS', chalk.magenta, 78));
-      console.log(drawBoxRow(`  Duration:        ${stats.duration}`, chalk.magenta, 78));
-      console.log(drawBoxRow(`  Messages:        ${stats.messages}`, chalk.magenta, 78));
-      console.log(drawBoxRow(`  Tool Calls:      ${stats.toolCalls}`, chalk.magenta, 78));
-      console.log(drawBoxRow(`  Active Model:    ${config.model}`, chalk.magenta, 78));
-      console.log(drawBoxRow(`  Heap Memory:     ${stats.heapUsedMB}MB / ${stats.heapTotalMB}MB`, chalk.magenta, 78));
-      console.log(drawBoxRow(`  RSS Memory:      ${stats.rssMB}MB`, chalk.magenta, 78));
-      console.log(drawBoxRow(`  Debug Mode:      ${agent.debugMode ? 'ON' : 'OFF'}`, chalk.magenta, 78));
-      console.log(drawBoxRow(`  Safety Level:    ${config.safetySensitivity}`, chalk.magenta, 78));
+      console.log(drawBoxHeader('📊 SESSION STATS', ui.theme.primary, 78));
+      console.log(drawBoxRow(`  Duration:        ${stats.duration}`, ui.theme.border, 78));
+      console.log(drawBoxRow(`  Messages:        ${stats.messages}`, ui.theme.border, 78));
+      console.log(drawBoxRow(`  Tool Calls:      ${stats.toolCalls}`, ui.theme.border, 78));
+      console.log(drawBoxRow(`  Active Model:    ${config.model}`, ui.theme.border, 78));
+      console.log(drawBoxRow(`  Heap Memory:     ${stats.heapUsedMB}MB / ${stats.heapTotalMB}MB`, ui.theme.border, 78));
+      console.log(drawBoxRow(`  RSS Memory:      ${stats.rssMB}MB`, ui.theme.border, 78));
+      console.log(drawBoxRow(`  Debug Mode:      ${agent.debugMode ? 'ON' : 'OFF'}`, ui.theme.border, 78));
+      console.log(drawBoxRow(`  Safety Level:    ${config.safetySensitivity}`, ui.theme.border, 78));
       
       if (stats.memory) {
-        console.log(drawBoxSeparator(chalk.magenta, 78));
-        console.log(drawBoxRow(chalk.magenta.bold('  🧠 MEMORY'), chalk.magenta, 78));
-        console.log(drawBoxRow(`  Sessions:        ${stats.memory.sessionCount}`, chalk.magenta, 78));
-        console.log(drawBoxRow(`  Total Messages:  ${stats.memory.totalMessages}`, chalk.magenta, 78));
-        console.log(drawBoxRow(`  Insights:        ${stats.memory.insightsCount}`, chalk.magenta, 78));
-        console.log(drawBoxRow(`  Patterns:        ${stats.memory.patternsCount}`, chalk.magenta, 78));
-        console.log(drawBoxRow(`  Preferences:     ${stats.memory.preferencesCount}`, chalk.magenta, 78));
+        console.log(drawBoxSeparator(ui.theme.border, 78));
+        console.log(drawBoxRow(ui.theme.primary.bold('  🧠 MEMORY'), ui.theme.border, 78));
+        console.log(drawBoxRow(`  Sessions:        ${stats.memory.sessionCount}`, ui.theme.border, 78));
+        console.log(drawBoxRow(`  Total Messages:  ${stats.memory.totalMessages}`, ui.theme.border, 78));
+        console.log(drawBoxRow(`  Insights:        ${stats.memory.insightsCount}`, ui.theme.border, 78));
+        console.log(drawBoxRow(`  Patterns:        ${stats.memory.patternsCount}`, ui.theme.border, 78));
+        console.log(drawBoxRow(`  Preferences:     ${stats.memory.preferencesCount}`, ui.theme.border, 78));
       }
-      console.log(drawBoxFooter(chalk.magenta, 78));
+      console.log(drawBoxFooter(ui.theme.border, 78));
       console.log('');
+      rl.prompt();
+      return;
+    }
+
+    // ── /theme ──────────────────────────────────────────────────
+    else if (input.startsWith('/theme')) {
+      const parts = input.split(' ');
+      if (parts.length > 1 && parts[1].trim()) {
+        const targetTheme = parts[1].trim().toLowerCase();
+        const success = ui.setTheme(targetTheme);
+        if (success) {
+          updateConfig('NEX_THEME', targetTheme);
+          ui.printSuccess(`Theme switched to: ${targetTheme.toUpperCase()}`);
+        } else {
+          ui.printError(`Unknown theme "${targetTheme}". Available: ${ui.getAvailableThemes().join(', ')}`);
+        }
+      } else {
+        console.log('');
+        console.log(drawBoxHeader('🎨 THEME CUSTOMIZER', ui.theme.primary, 78));
+        console.log(drawBoxRow('  Select a dynamic visual theme to customize NEX AI:', ui.theme.border, 78));
+        console.log(drawBoxRow('', ui.theme.border, 78));
+        
+        const available = ui.getAvailableThemes();
+        available.forEach(tName => {
+          const t = ui.getTheme(tName);
+          const activeIndicator = tName === ui.activeThemeName ? ui.theme.success(' ◄ Active') : '';
+          const nameStr = `  • ${tName.charAt(0).toUpperCase() + tName.slice(1)}`.padEnd(20);
+          const dots = [
+            t.primary('●'),
+            t.secondary('●'),
+            t.success('●'),
+            t.warning('●'),
+            t.error('●'),
+            t.border('●')
+          ].join(' ');
+          const row = `${nameStr} [ ${dots} ]${activeIndicator}`;
+          console.log(drawBoxRow(row, ui.theme.border, 78));
+        });
+        
+        console.log(drawBoxRow('', ui.theme.border, 78));
+        console.log(drawBoxSeparator(ui.theme.border, 78));
+        console.log(drawBoxRow('  Usage:', ui.theme.border, 78));
+        console.log(drawBoxRow('    /theme <themeName>   Switch theme', ui.theme.border, 78));
+        console.log(drawBoxFooter(ui.theme.border, 78));
+        console.log('');
+      }
+      rl.prompt();
+      return;
+    }
+
+    // ── /dashboard ──────────────────────────────────────────────
+    else if (input === '/dashboard') {
+      const stats = await agent.getSessionStats();
+      
+      // Helper for dual-column format
+      const formatDual = (leftLabel, leftVal, rightLabel, rightVal) => {
+        const leftStr = `${ui.theme.primary(leftLabel.padEnd(15))} ${ui.theme.text(leftVal)}`;
+        const rightStr = `${ui.theme.primary(rightLabel.padEnd(15))} ${ui.theme.text(rightVal)}`;
+        const paddedLeft = padLine(leftStr, 35, 'left');
+        const paddedRight = padLine(rightStr, 36, 'left');
+        return `${paddedLeft} ${ui.theme.secondary('│')} ${paddedRight}`;
+      };
+
+      const shortModel = stats.activeModel.length > 18 
+        ? stats.activeModel.substring(0, 15) + '...' 
+        : stats.activeModel;
+
+      console.log('');
+      console.log(drawDoubleBoxHeader('🚀 NEX AI Premium Dashboard & Workspace HUD', ui.theme.border, 78));
+      console.log(drawDoubleBoxRow(formatDual('Active Model', shortModel, 'Git Branch', stats.gitBranch), ui.theme.border, 78));
+      console.log(drawDoubleBoxRow(formatDual('Session Uptime', stats.duration, 'Modified Files', stats.gitModifiedCount), ui.theme.border, 78));
+      console.log(drawDoubleBoxRow(formatDual('Est. Cost (USD)', `$${stats.estimatedCost}`, 'Active Safety', stats.safetySensitivity.toUpperCase()), ui.theme.border, 78));
+      
+      console.log(drawDoubleBoxSeparator(ui.theme.border, 78));
+      console.log(drawDoubleBoxRow(ui.theme.primary.bold('  📊 TOKEN USAGE & METRICS'.padEnd(35)) + ui.theme.secondary('│') + ui.theme.primary.bold('  🧠 MEMORY SYSTEM STATUS'), ui.theme.border, 78));
+      
+      console.log(drawDoubleBoxRow(formatDual('Prompt Tokens', stats.promptTokens, 'Mem Sessions', stats.memory.sessionCount), ui.theme.border, 78));
+      console.log(drawDoubleBoxRow(formatDual('Compl. Tokens', stats.completionTokens, 'Total Messages', stats.memory.totalMessages), ui.theme.border, 78));
+      console.log(drawDoubleBoxRow(formatDual('Total Tokens', stats.totalTokens, 'Saved Insights', stats.memory.insightsCount), ui.theme.border, 78));
+      console.log(drawDoubleBoxRow(formatDual('Messages/Session', stats.messages, 'Learned Patterns', stats.memory.patternsCount), ui.theme.border, 78));
+      
+      console.log(drawDoubleBoxSeparator(ui.theme.border, 78));
+      console.log(drawDoubleBoxRow(ui.theme.primary.bold('  ⚙️  SYSTEM PROCESS HEALTH'.padEnd(74)), ui.theme.border, 78));
+      
+      const processRow = formatDual('Heap Memory', `${stats.heapUsedMB}MB / ${stats.heapTotalMB}MB`, 'RSS Memory', `${stats.rssMB}MB`);
+      console.log(drawDoubleBoxRow(processRow, ui.theme.border, 78));
+      
+      console.log(drawDoubleBoxFooter(ui.theme.border, 78));
+      console.log('');
+      
       rl.prompt();
       return;
     }
@@ -693,7 +802,7 @@ async function main() {
         // Direct set: /config KEY VALUE
         const key = parts[1].toUpperCase();
         const value = parts.slice(2).join(' ');
-        const validKeys = ['MAX_TOKENS', 'TEMPERATURE', 'SAFETY_SENSITIVITY', 'MODEL', 'GITHUB_TOKEN', 'DEFAULT_MODEL'];
+        const validKeys = ['MAX_TOKENS', 'TEMPERATURE', 'SAFETY_SENSITIVITY', 'MODEL', 'GITHUB_TOKEN', 'DEFAULT_MODEL', 'NEX_THEME'];
         if (!validKeys.includes(key)) {
           ui.printError(`[CONFIG] Unknown key: ${key}. Valid: ${validKeys.join(', ')}`);
         } else {
@@ -702,17 +811,21 @@ async function main() {
           if (key === 'MODEL' || key === 'DEFAULT_MODEL') {
             resolvedValue = resolveModelInput(value);
           }
+          if (key === 'NEX_THEME') {
+            const themeApplied = ui.setTheme(resolvedValue);
+            if (!themeApplied) {
+              ui.printError(`Unknown theme "${resolvedValue}". Available: ${ui.getAvailableThemes().join(', ')}`);
+              rl.prompt();
+              return;
+            }
+          }
           const saved = updateConfig(key, resolvedValue);
           if (saved) {
             // Rebuild safety if sensitivity changed
             if (key === 'SAFETY_SENSITIVITY') {
               agent.rebuildSafety();
             }
-            if (key === 'MODEL' || key === 'DEFAULT_MODEL') {
-              ui.printInfo(`[CONFIG] ${key} = ${resolvedValue} (saved to .env)`);
-            } else {
-              ui.printInfo(`[CONFIG] ${key} = ${resolvedValue} (saved to .env)`);
-            }
+            ui.printInfo(`[CONFIG] ${key} = ${resolvedValue} (saved to .env)`);
           } else {
             ui.printError(`[CONFIG] Failed to save ${key}`);
           }
@@ -724,21 +837,22 @@ async function main() {
       // Show interactive config menu
       const display = getConfigDisplay();
       console.log('');
-      console.log(drawBoxHeader('⚙️  CONFIGURATION', chalk.yellow, 78));
-      console.log(drawBoxRow('  Current settings:', chalk.yellow, 78));
-      console.log(drawBoxRow('', chalk.yellow, 78));
+      console.log(drawBoxHeader('⚙️  CONFIGURATION', ui.theme.primary, 78));
+      console.log(drawBoxRow('  Current settings:', ui.theme.border, 78));
+      console.log(drawBoxRow('', ui.theme.border, 78));
       const keys = Object.keys(display);
       keys.forEach((k, i) => {
-        const item = `  [${i + 1}] ${k.padEnd(22)} ${display[k]}`;
-        console.log(drawBoxRow(item, chalk.yellow, 78));
+        const item = `  [${i + 1}] ${ui.theme.primary(k.padEnd(22))} ${ui.theme.text(display[k])}`;
+        console.log(drawBoxRow(item, ui.theme.border, 78));
       });
-      console.log(drawBoxRow('', chalk.yellow, 78));
-      console.log(drawBoxSeparator(chalk.yellow, 78));
-      console.log(drawBoxRow('  Usage: /config <key> <value>', chalk.yellow, 78));
-      console.log(drawBoxRow('  Example: /config TEMPERATURE 0.7', chalk.yellow, 78));
-      console.log(drawBoxRow('  Example: /config MAX_TOKENS 8192', chalk.yellow, 78));
-      console.log(drawBoxRow('  Example: /config DEFAULT_MODEL 2', chalk.yellow, 78));
-      console.log(drawBoxFooter(chalk.yellow, 78));
+      console.log(drawBoxRow('', ui.theme.border, 78));
+      console.log(drawBoxSeparator(ui.theme.border, 78));
+      console.log(drawBoxRow('  Usage: /config <key> <value>', ui.theme.border, 78));
+      console.log(drawBoxRow('  Example: /config TEMPERATURE 0.7', ui.theme.border, 78));
+      console.log(drawBoxRow('  Example: /config MAX_TOKENS 8192', ui.theme.border, 78));
+      console.log(drawBoxRow('  Example: /config DEFAULT_MODEL 2', ui.theme.border, 78));
+      console.log(drawBoxRow('  Example: /config NEX_THEME dracula', ui.theme.border, 78));
+      console.log(drawBoxFooter(ui.theme.border, 78));
       console.log('');
       rl.prompt();
       return;
